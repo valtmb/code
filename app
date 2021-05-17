@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 import pyodbc
 import keyring
 import dash_table
+import time
 
 # Duomenu uzkrovimas
 #------------------------------------------------
@@ -50,13 +51,13 @@ df.index = pd.to_datetime(df['Date'])
 app = dash.Dash(__name__)
 #server = app.server
 
-#Sukuriamas list su dictionary, kuriame bus reiksmes 'lable' ir 'value'
+
 def get_options (list_names):
     dict_list = []
     for i in list_names:
         dict_list.append({'label': i, 'value':i})
     
-    return dict_list #grazina robotu pavadinimus i key=value poras
+    return dict_list 
 
 card1_body = dbc.CardBody([html.H4("Pavadinimas", className="card-title",id="card_num1"),
                   html.P("Klaidų kiekis šiandien", className="card-text",id="card_text1")
@@ -84,9 +85,11 @@ PAGE_SIZE = 9
 app.layout = html.Div(children=[
     dcc.Location(id='url', refresh=False),
     html.Div(id='page-content'),
-    html.Div(className='row', # Apsirasomas eiles(row) elemtnas
+    dcc.ConfirmDialog(id='confirm',
+                      message ='Pasiektas leistinas klaidų skaičius'),
+    html.Div(className='row',
              children=[
-                 html.Div(className='four columns div-user-controls', #Apsirasomas kairysis elementas
+                 html.Div(className='four columns div-user-controls',
                           children=[
                               dcc.Link(html.Button('Registruoti gedimą'), href='https://form.jotform.com/211294196393360', target='_blank'),
                               html.H2('Dash - Robotų transakcijos'),
@@ -97,7 +100,7 @@ app.layout = html.Div(children=[
                                            dcc.Dropdown(id='robotselector',
                                                         options=get_options(df['Name'].unique()),
                                                         multi=True,
-                                                        value=[df['Name'].sort_values()[0]],#pasirnekam by default pavadinimas
+                                                        value=[df['Name'].sort_values()[0]],
                                                         style={'backgroundColor': 'black'},
                                                         className='robotselector')
                                            ],
@@ -115,7 +118,7 @@ app.layout = html.Div(children=[
                                            dcc.Dropdown(id='robotselector1',
                                                         options=get_options(todaysData['Name'].unique()),
                                                         multi=False,
-                                                        value=[todaysData['Name'].sort_values()[0]],#pasirnekam by default pavadinimas
+                                                        value=[todaysData['Name'].sort_values()[0]],
                                                         style={'backgroundColor': 'black'},
 
                                                         className='robotselector1')
@@ -143,7 +146,7 @@ app.layout = html.Div(children=[
                           ),
                
                                  
-                 html.Div(className='eight columns div-for-charts bg-grey',#Apsirasomas desinysis elementas
+                 html.Div(className='eight columns div-for-charts bg-grey',
                           children=[
                               dcc.Graph(id='timeseries', config={'displayModeBar': False}),
                               
@@ -179,12 +182,10 @@ app.layout = html.Div(children=[
               [Input('robotselector', 'value')]
               )
 def update_timeseries(selected_dropdown_value):
-    ''' Draw traces of the feature 'value' based one the currently selected stocks '''
-    # STEP 1
+
     trace = []  
     df_sub = df
-    # STEP 2
-    # Draw and append traces for each stock
+ 
     for Name in selected_dropdown_value:   
         trace.append(go.Scatter(x=df_sub[df_sub['Name'] == Name].index,
                                  y=df_sub[df_sub['Name'] == Name]['TotalApplicationExceptions'],
@@ -192,11 +193,8 @@ def update_timeseries(selected_dropdown_value):
                                  opacity=1,
                                  name=Name,
                                  textposition='bottom center'))  
-    # STEP 3
     traces = [trace]
     data = [val for sublist in traces for val in sublist]
-    # Define Figure
-    # STEP 4
     figure = {'data': data,
               'layout': go.Layout(
                   colorway=["#5E0DAC", '#FF4F00', '#375CB1', '#FF7400', '#FFF400', '#FF0056'],
@@ -213,6 +211,18 @@ def update_timeseries(selected_dropdown_value):
               }
 
     return figure
+@app.callback(Output('confirm', 'displayed'),
+              Input('robotselector1','value')
+              )
+
+def display_confirm(value):
+    name_df2 = todaysData[(todaysData.Name==value)]
+    tot_app2 = f"{name_df2['TotalApplicationExceptions'].sum():,.0f}"
+    #display = dcc.ConfirmDialog(id='confirm',
+        #message='Procesas {name_df2} viršyjo leistiną klaidų skaičių:{tot_app2}')
+    if int(tot_app2) > 0:
+        time.sleep(1)
+        return True
 
 
 @app.callback(Output('card_row','children'),
@@ -281,7 +291,6 @@ def update_table(page_current, page_size, sort_by):
             inplace=False
         )
     else:
-        # No sort is applied
         dff = runningData
 
     return dff.iloc[
@@ -291,5 +300,3 @@ def update_table(page_current, page_size, sort_by):
 # Paleisti programa
 if __name__ == '__main__':
     app.run_server(debug=True)
-# -*- coding: utf-8 -*-
-
